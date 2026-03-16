@@ -135,10 +135,7 @@ pub extern "C" fn main(hart_id: usize, dtb: usize) -> ! {
             kprint!("PKUOS>");
             let input = read_line();
             match input.as_str() {
-                "exit" => {
-                    // kprintln!("");
-                    break;
-                }
+                "exit" => break,
                 "whoami" => kprintln!("2400013101"),
                 _ => kprintln!("invalid command"),
             }

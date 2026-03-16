@@ -9,7 +9,13 @@ pub use self::imp::*;
 pub use self::manager::Manager;
 pub(self) use self::scheduler::{Schedule, Scheduler};
 
+use crate::sync::Lazy;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
+
+// Global sleep queue: (wake_tick, thread)
+pub static SLEEP_QUEUE: Lazy<Mutex<Vec<(i64, Arc<Thread>)>>> =
+    Lazy::new(|| Mutex::new(Vec::new()));
 
 /// Create a new thread
 pub fn spawn<F>(name: &'static str, f: F) -> Arc<Thread>
@@ -70,20 +76,56 @@ pub fn wake_up(thread: Arc<Thread>) {
 }
 
 /// (Lab1) Sets the current thread's priority to a given value
-pub fn set_priority(_priority: u32) {}
+pub fn set_priority(_priority: u32) {
+    use core::sync::atomic::Ordering::SeqCst;
+    current().priority.store(_priority, SeqCst);
+    schedule();
+}
 
 /// (Lab1) Returns the current thread's effective priority.
 pub fn get_priority() -> u32 {
-    0
+    use core::sync::atomic::Ordering::SeqCst;
+    return current().priority.load(SeqCst)
+}
+
+// check blocked threads in the sleep queue to see who to wake up
+pub fn check_wakeup() {
+    use crate::sbi::timer::timer_ticks;
+
+    let now = timer_ticks();
+    let mut expired = Vec::new();
+
+    {
+        let mut queue = SLEEP_QUEUE.lock();
+        let mut i = 0;
+        while i < queue.len() {
+            if queue[i].0 <= now {
+                let (_, thread) = queue.swap_remove(i);
+                expired.push(thread);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    for thread in expired {
+        wake_up(thread);
+    }
 }
 
 /// (Lab1) Make the current thread sleep for the given ticks.
 pub fn sleep(ticks: i64) {
-    use crate::sbi::timer::{timer_elapsed, timer_ticks};
+    use crate::sbi::{interrupt, timer::timer_ticks};
 
-    let start = timer_ticks();
-
-    while timer_elapsed(start) < ticks {
-        schedule();
+    if ticks <= 0 {
+        return;
     }
+
+    let old = interrupt::set(false);
+    let wake_tick = timer_ticks() + ticks;
+
+    SLEEP_QUEUE.lock().push((wake_tick, current()));
+    block();
+
+    interrupt::set(old);
 }
