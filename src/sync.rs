@@ -9,6 +9,7 @@ pub mod once;
 pub mod sema;
 pub mod sleep;
 pub mod spin;
+pub mod utils;
 
 pub use self::condvar::Condvar;
 pub use self::intr::Intr;

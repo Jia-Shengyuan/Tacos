@@ -1,9 +1,11 @@
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use core::cell::{Cell, RefCell};
+// use core::sync::atomic::Ordering::SeqCst;
 
 use crate::sbi;
-use crate::thread::{self, Thread};
+use crate::thread::{self, Thread, schedule};
+use crate::sync::utils::get_thread_index;
 
 /// Atomic counting semaphore
 ///
@@ -53,11 +55,16 @@ impl Semaphore {
         let old = sbi::interrupt::set(false);
         let count = self.value.replace(self.value() + 1);
 
-        // Check if we need to wake up a sleeping waiter
-        if let Some(thread) = self.waiters.borrow_mut().pop_back() {
-            assert_eq!(count, 0);
+        let idx = {
+            let waiters = self.waiters.borrow();
+            get_thread_index(&waiters)
+        };
 
+        if let Some(index) = idx {
+            assert_eq!(count, 0);
+            let thread = self.waiters.borrow_mut().remove(index).unwrap();
             thread::wake_up(thread.clone());
+            schedule();
         }
 
         sbi::interrupt::set(old);

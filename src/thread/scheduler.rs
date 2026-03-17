@@ -6,6 +6,7 @@
 //!
 
 pub mod fcfs;
+pub mod random;
 
 use alloc::sync::Arc;
 

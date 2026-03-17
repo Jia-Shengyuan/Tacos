@@ -47,8 +47,10 @@ use alloc::sync::Arc;
 use core::cell::RefCell;
 
 use crate::sync::{Lock, MutexGuard, Semaphore};
+use crate::sync::utils::get_thread_index_by;
+use crate::thread::{current, Thread};
 
-pub struct Condvar(RefCell<VecDeque<Arc<Semaphore>>>);
+pub struct Condvar(RefCell<VecDeque<(Arc<Semaphore>, Arc<Thread>)>>);
 
 unsafe impl Sync for Condvar {}
 unsafe impl Send for Condvar {}
@@ -60,8 +62,7 @@ impl Condvar {
 
     pub fn wait<T, L: Lock>(&self, guard: &mut MutexGuard<'_, T, L>) {
         let sema = Arc::new(Semaphore::new(0));
-        self.0.borrow_mut().push_front(sema.clone());
-
+        self.0.borrow_mut().push_front((sema.clone(), current().clone()));
         guard.release();
         sema.down();
         guard.acquire();
@@ -69,14 +70,18 @@ impl Condvar {
 
     /// Wake up one thread from the waiting list
     pub fn notify_one(&self) {
-        if let Some(sema) = self.0.borrow_mut().pop_back() {
-            sema.up();
+        let mut waiters = self.0.borrow_mut();
+        let idx = get_thread_index_by(&waiters, |(_sema, thread)| thread);
+        if let Some(i) = idx {
+            if let Some((sema, _thread)) = waiters.remove(i) {
+                sema.up();
+            }
         }
     }
 
     /// Wake up all waiting threads
     pub fn notify_all(&self) {
-        self.0.borrow().iter().for_each(|s| s.up());
+        self.0.borrow().iter().for_each(|(s, _)| s.up());
         self.0.borrow_mut().clear();
     }
 }
