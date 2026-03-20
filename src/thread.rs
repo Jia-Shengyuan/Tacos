@@ -77,6 +77,10 @@ pub fn wake_up(thread: Arc<Thread>) {
 
 /// (Lab1) Sets the current thread's priority to a given value
 pub fn set_priority(_priority: u32) {
+    // Do not wrap this path with interrupt::set(false): schedule() may switch
+    // to another thread immediately, and interrupt state is hart-global here.
+    // If we switch out while interrupts are disabled, the next thread may run
+    // in an unintended interrupt-off window and cause timer-based timeouts.
     current().set_priority(_priority);
     schedule();
 }

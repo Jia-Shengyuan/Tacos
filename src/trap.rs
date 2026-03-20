@@ -71,9 +71,12 @@ pub extern "C" fn trap_handler(frame: &mut Frame) {
         Interrupt(SupervisorTimer) => {
             sbi::timer::tick();
             thread::check_wakeup();
-            // ai reasoned a timeout bug to here
-            // unsafe { riscv::register::sstatus::set_sie() };
             thread::schedule();
+            // Old code (kept for reference):
+            // unsafe { riscv::register::sstatus::set_sie() };
+            // Enable interrupt on SRET instead of right now, so we avoid
+            // nested timer-trap reentry inside handler/scheduler critical path.
+            unsafe { riscv::register::sstatus::set_spie() };
         }
 
         Interrupt(SupervisorExternal) => unsafe {

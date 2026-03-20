@@ -55,8 +55,11 @@ impl Lock for Sleep {
 
         thread::current().remove_held_lock(self.lock_id());
         self.holder.borrow_mut().take().unwrap();
-        self.inner.up();
+        let need_schedule = self.inner.up_deferred();
         sbi::interrupt::set(old);
+        if need_schedule && old {
+            thread::schedule();
+        }
     }
 }
 

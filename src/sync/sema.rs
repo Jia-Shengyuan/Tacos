@@ -52,8 +52,15 @@ impl Semaphore {
 
     /// V operation
     pub fn up(&self) {
+        let _ = self.up_deferred();
+    }
+
+    /// V operation without immediate scheduling. Returns whether waking a
+    /// higher-priority thread suggests a reschedule.
+    pub fn up_deferred(&self) -> bool {
         let old = sbi::interrupt::set(false);
         let count = self.value.replace(self.value() + 1);
+        let mut need_schedule = false;
 
         let idx = {
             let waiters = self.waiters.borrow();
@@ -63,11 +70,26 @@ impl Semaphore {
         if let Some(index) = idx {
             assert_eq!(count, 0);
             let thread = self.waiters.borrow_mut().remove(index).unwrap();
+            need_schedule = thread.get_priority() > thread::current().get_priority();
             thread::wake_up(thread.clone());
-            schedule();
         }
 
         sbi::interrupt::set(old);
+
+        // Preempt after restoring interrupt state so the next thread does not
+        // inherit an unintended interrupt-disabled execution window.
+        // Old behavior:
+        // if need_schedule {
+        //     schedule();
+        // }
+        // Only schedule immediately when this function itself turned interrupts
+        // off. If caller already had interrupts disabled, let caller decide a
+        // safer scheduling point after its outer critical section.
+        if need_schedule && old {
+            schedule();
+        }
+
+        need_schedule
     }
 
     /// Get the current value of a semaphore
