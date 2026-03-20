@@ -74,4 +74,13 @@ impl Semaphore {
     pub fn value(&self) -> usize {
         self.value.get()
     }
+
+    pub fn get_highest_waiter_priority(&self) -> u32 {
+        self.waiters
+            .borrow()
+            .iter()
+            .map(|thread| thread.get_priority())
+            .max()
+            .unwrap_or(0)
+    }
 }

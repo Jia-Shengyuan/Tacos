@@ -2,12 +2,14 @@
 
 use alloc::boxed::Box;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use core::arch::global_asm;
 use core::fmt::{self, Debug};
 use core::sync::atomic::{AtomicIsize, AtomicU32, Ordering::SeqCst};
 
 use crate::mem::{kalloc, kfree, PageTable, PG_SIZE};
 use crate::sbi::interrupt;
+use crate::sync::Sleep;
 use crate::thread::Manager;
 use crate::userproc::UserProc;
 
@@ -30,7 +32,9 @@ pub struct Thread {
     stack: usize,
     status: Mutex<Status>,
     context: Mutex<Context>,
-    pub priority: AtomicU32,
+    locks_held: Mutex<Vec<usize>>,
+    lock_waiting: Mutex<Option<usize>>,
+    priority: AtomicU32,
     pub userproc: Option<UserProc>,
     pub pagetable: Option<Mutex<PageTable>>,
 }
@@ -53,6 +57,8 @@ impl Thread {
             stack,
             status: Mutex::new(Status::Ready),
             context: Mutex::new(Context::new(stack, entry)),
+            locks_held: Mutex::new(Vec::new()),
+            lock_waiting: Mutex::new(None),
             priority: AtomicU32::new(priority),
             userproc,
             pagetable: pagetable.map(Mutex::new),
@@ -82,6 +88,45 @@ impl Thread {
     pub fn overflow(&self) -> bool {
         unsafe { (self.stack as *const usize).read() != MAGIC }
     }
+
+    pub fn set_waiting_lock(&self, lock_id: usize) {
+        self.lock_waiting.lock().replace(lock_id);
+    }
+
+    pub fn clear_waiting_lock(&self) {
+        self.lock_waiting.lock().take();
+    }
+
+    pub fn waiting_lock(&self) -> Option<usize> {
+        *self.lock_waiting.lock()
+    }
+
+    pub fn add_held_lock(&self, lock_id: usize) {
+        self.locks_held.lock().push(lock_id);
+    }
+
+    pub fn remove_held_lock(&self, lock_id: usize) {
+        let mut locks = self.locks_held.lock();
+        if let Some(pos) = locks.iter().position(|l| *l == lock_id) {
+            locks.swap_remove(pos);
+        }
+    }
+
+    pub fn get_priority(&self) -> u32 {
+        let mut effective = self.priority.load(SeqCst);
+        for lock_id in self.locks_held.lock().iter() {
+            let donated = unsafe { (&*(*lock_id as *const Sleep)).get_highest_waiter_priority() };
+            if donated > effective {
+                effective = donated;
+            }
+        }
+        effective
+    }
+
+    pub fn set_priority(&self, priority: u32) {
+        self.priority.store(priority, SeqCst);
+    }
+
 }
 
 impl Debug for Thread {

@@ -77,15 +77,13 @@ pub fn wake_up(thread: Arc<Thread>) {
 
 /// (Lab1) Sets the current thread's priority to a given value
 pub fn set_priority(_priority: u32) {
-    use core::sync::atomic::Ordering::SeqCst;
-    current().priority.store(_priority, SeqCst);
+    current().set_priority(_priority);
     schedule();
 }
 
 /// (Lab1) Returns the current thread's effective priority.
 pub fn get_priority() -> u32 {
-    use core::sync::atomic::Ordering::SeqCst;
-    return current().priority.load(SeqCst)
+    current().get_priority()
 }
 
 // check blocked threads in the sleep queue to see who to wake up
