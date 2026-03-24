@@ -32,7 +32,7 @@ pub struct Thread {
     stack: usize,
     status: Mutex<Status>,
     context: Mutex<Context>,
-    locks_held: Mutex<Vec<usize>>,
+    locks_held: Mutex<Vec<usize>>, // we store the pointer
     lock_waiting: Mutex<Option<usize>>,
     priority: AtomicU32,
     pub userproc: Option<UserProc>,

@@ -11,13 +11,6 @@ pub struct Fcfs(VecDeque<Arc<Thread>>);
 impl Schedule for Fcfs {
 
     fn register(&mut self, thread: Arc<Thread>) {
-        // Keep old behavior simple, but guard against duplicate registrations
-        // under rare interleavings.
-        // Old behavior:
-        // self.0.push_back(thread);
-        // if self.0.iter().any(|t| t.id() == thread.id()) {
-            // return;
-        // }
         self.0.push_back(thread);
     }
 

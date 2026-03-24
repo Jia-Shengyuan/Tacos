@@ -10,12 +10,13 @@ pub use self::manager::Manager;
 pub(self) use self::scheduler::{Schedule, Scheduler};
 
 use crate::sync::Lazy;
+use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
-// Global sleep queue: (wake_tick, thread)
-pub static SLEEP_QUEUE: Lazy<Mutex<Vec<(i64, Arc<Thread>)>>> =
-    Lazy::new(|| Mutex::new(Vec::new()));
+// Global sleep queue: wake_tick -> threads to wake at that tick.
+pub static SLEEP_QUEUE: Lazy<Mutex<BTreeMap<i64, Vec<Arc<Thread>>>>> =
+    Lazy::new(|| Mutex::new(BTreeMap::new()));
 
 /// Create a new thread
 pub fn spawn<F>(name: &'static str, f: F) -> Arc<Thread>
@@ -99,13 +100,15 @@ pub fn check_wakeup() {
 
     {
         let mut queue = SLEEP_QUEUE.lock();
-        let mut i = 0;
-        while i < queue.len() {
-            if queue[i].0 <= now {
-                let (_, thread) = queue.swap_remove(i);
-                expired.push(thread);
-            } else {
-                i += 1;
+        loop {
+            let Some((&wake_tick, _)) = queue.iter().next() else {
+                break;
+            };
+            if wake_tick > now {
+                break;
+            }
+            if let Some(mut threads) = queue.remove(&wake_tick) {
+                expired.append(&mut threads);
             }
         }
     }
@@ -126,7 +129,11 @@ pub fn sleep(ticks: i64) {
     let old = interrupt::set(false);
     let wake_tick = timer_ticks() + ticks;
 
-    SLEEP_QUEUE.lock().push((wake_tick, current()));
+    SLEEP_QUEUE
+        .lock()
+        .entry(wake_tick)
+        .or_default()
+        .push(current());
     block();
 
     interrupt::set(old);
