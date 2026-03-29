@@ -3,6 +3,7 @@ use alloc::sync::Arc;
 
 use crate::thread::Thread;
 
+// returns: the index of the chosen thread, choose by priority.
 pub fn get_thread_index_by_iter<'a, T, I, F>(iter: I, get_thread: F) -> Option<usize>
 where
     I: IntoIterator<Item = &'a T>,

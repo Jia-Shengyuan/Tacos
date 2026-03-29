@@ -120,21 +120,15 @@ pub fn check_wakeup() {
 
 /// (Lab1) Make the current thread sleep for the given ticks.
 pub fn sleep(ticks: i64) {
-    use crate::sbi::{interrupt, timer::timer_ticks};
 
-    if ticks <= 0 {
-        return;
-    }
+    use crate::sbi::{interrupt, timer::timer_ticks};
+    if ticks <= 0 { return; }
 
     let old = interrupt::set(false);
     let wake_tick = timer_ticks() + ticks;
+    
+    SLEEP_QUEUE.lock().entry(wake_tick).or_default().push(current());
 
-    SLEEP_QUEUE
-        .lock()
-        .entry(wake_tick)
-        .or_default()
-        .push(current());
     block();
-
     interrupt::set(old);
 }

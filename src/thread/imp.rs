@@ -32,9 +32,9 @@ pub struct Thread {
     stack: usize,
     status: Mutex<Status>,
     context: Mutex<Context>,
-    locks_held: Mutex<Vec<usize>>, // we store the pointer
+    locks_held: Mutex<Vec<usize>>, // we store the pointer of the lock's Sleep
     lock_waiting: Mutex<Option<usize>>,
-    priority: AtomicU32,
+    priority: AtomicU32, // the original priority, we set it private
     pub userproc: Option<UserProc>,
     pub pagetable: Option<Mutex<PageTable>>,
 }
@@ -112,6 +112,7 @@ impl Thread {
         }
     }
 
+    // returns the priority, having considered priority donation from locks it holds
     pub fn get_priority(&self) -> u32 {
         let mut effective = self.priority.load(SeqCst);
         for lock_id in self.locks_held.lock().iter() {

@@ -1,7 +1,6 @@
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use core::cell::{Cell, RefCell};
-// use core::sync::atomic::Ordering::SeqCst;
 
 use crate::sbi;
 use crate::thread::{self, Thread, schedule};
@@ -76,12 +75,6 @@ impl Semaphore {
 
         sbi::interrupt::set(old);
 
-        // Preempt after restoring interrupt state so the next thread does not
-        // inherit an unintended interrupt-disabled execution window.
-        // Old behavior:
-        // if need_schedule {
-        //     schedule();
-        // }
         // Only schedule immediately when this function itself turned interrupts
         // off. If caller already had interrupts disabled, let caller decide a
         // safer scheduling point after its outer critical section.

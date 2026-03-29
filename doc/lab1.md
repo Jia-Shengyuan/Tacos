@@ -93,7 +93,9 @@ Nested donation: 在线程中做了一个修改，把 `priority` 字段改为私
 
 > B6: Describe a potential race in `thread::set_priority()` and explain how your implementation avoids it. Can you use a lock to avoid this race?
 
+潜在竞争：在修改完线程优先级后，调用 `schedule()` 前的这段时间内，如果恰好发生调度，可能会出现新的调度结果实质上是基于旧的优先级的情况。实现中，写新优先级的过程使用原子存储，写后立即进行 `schedule()`，并且进行所有调度时都使用 `get_priority()` 接口（这样只要是在写之后获取优先级，就一定是对的），以此尽可能的避免竞争。
 
+另外，不太方便用锁去规避这一个竞争。因为如果这样做，就要在锁被释放之前就调用 `schedule()` 切换线程，之后有可能其他线程也会试图去持有这把锁，造成互相的阻塞甚至死锁。
 
 ## Rationale
 
