@@ -100,3 +100,5 @@ Nested donation: 在线程中做了一个修改，把 `priority` 字段改为私
 ## Rationale
 
 > C1: Have you considered other design possibilities? You can talk about anything in your solution that you once thought about doing them another way. And for what reasons that you made your choice?
+
+暂时还没考虑别的设计（或者说有一些别的设计，做一半发现不行，于是才改成现在的设计）
